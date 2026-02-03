@@ -154,7 +154,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
             return new_line, combined_html
 
         # Auto-refresh every 0.5 seconds using Timer (requires Gradio 4.0+)
-        self.timer = gr.Timer(interval=0.5)
+        self.timer = gr.Timer(1.0)
         self.timer.tick(
             fn=read_new_lines,
             inputs=[self.line_tracker, self.log_output],
