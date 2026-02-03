@@ -43,6 +43,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
         gr.Markdown("### Auto-streaming logs from file (sample.log)")
 
         log_file = "/workspace/wan2gp_log.txt"
+        tracker_file = ".line_tracker.txt"
 
         with gr.Column():
             self.feature_logger = LiveLog(
@@ -57,21 +58,27 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 f"**Log file:** `{log_file}` - Auto-refreshing every 0.5s"
             )
 
-            self.line_tracker = gr.Number(value=0, visible=False)
-
         @livelog(
             log_names=["logging_app"],
             outputs_for_yield=[self.feature_logger],
             log_output_index=0,
-            result_output_index=1,
+            result_output_index=0,
             use_tracker=False,
         )
-        def read_new_lines(current_line: int, **kwargs):
+        def read_new_lines(**kwargs):
             log_callback = kwargs["log_callback"]
-            new_line = current_line
-
             import os
 
+            # Read current line from file
+            current_line = 0
+            if os.path.exists(tracker_file):
+                try:
+                    with open(tracker_file, "r") as tf:
+                        current_line = int(tf.read())
+                except:
+                    pass
+
+            # Read new lines from log file
             if os.path.exists(log_file):
                 with open(log_file, "r", encoding="utf-8") as f:
                     lines = f.readlines()
@@ -82,22 +89,22 @@ class ConfigTabPlugin(WAN2GPPlugin):
                             if line:
                                 app_logger.info(line)
                                 log_callback(log_content=line)
-                                new_line = i + 1
-                                time.sleep(0.02)
+                                current_line = i + 1
+                                time.sleep(0.01)
 
-            return new_line, gr.update()
+                        # Save new line position
+                        with open(tracker_file, "w") as tf:
+                            tf.write(str(current_line))
 
         try:
             self.timer = gr.Timer(interval=0.5)
             self.timer.tick(
                 fn=read_new_lines,
-                inputs=[self.line_tracker],
-                outputs=[self.line_tracker, self.feature_logger],
+                outputs=[self.feature_logger],
             )
         except:
             timer_btn = gr.Button("Refresh Logs", size="sm", visible=True)
             timer_btn.click(
                 fn=read_new_lines,
-                inputs=[self.line_tracker],
-                outputs=[self.line_tracker, self.feature_logger],
+                outputs=[self.feature_logger],
             )
