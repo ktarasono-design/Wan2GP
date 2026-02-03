@@ -21,7 +21,13 @@ PlugIn_Id ="LogsPlugin"
 class ConfigTabPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
-        self.configure_logging()
+        app_logger = logging.getLogger("logging_app")
+        app_logger.setLevel(logging.INFO)
+        if not app_logger.handlers:
+            console_handler = logging.StreamHandler()
+            #console_handler.flush = sys.stderr.flush
+            app_logger.addHandler(console_handler)
+
 
     def setup_ui(self):
         self.request_global("get_current_model_settings")
@@ -36,18 +42,6 @@ class ConfigTabPlugin(WAN2GPPlugin):
             component_constructor=self.create_config_ui,
             position=10000
         )
-
-
-    def configure_logging():
-        #logging.basicConfig(level=logging.DEBUG)
-
-        # Logger for LiveLog Feature Demo
-        app_logger = logging.getLogger("logging_app")
-        app_logger.setLevel(logging.INFO)
-        if not app_logger.handlers:
-            console_handler = logging.StreamHandler()
-            #console_handler.flush = sys.stderr.flush
-            app_logger.addHandler(console_handler)
 
 
     def on_tab_select(self, state: dict) -> None:
