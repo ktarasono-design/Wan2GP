@@ -3,7 +3,7 @@ import gradio as gr
 from shared.utils.plugins import WAN2GPPlugin
 import time
 
-PlugIn_Name = "Logs Plugin"
+PlugIn_Name = "Console"
 PlugIn_Id = "LogsPlugin"
 
 app_logger = logging.getLogger("logging_app")
@@ -27,8 +27,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
         self.add_tab(
             tab_id=PlugIn_Id,
             label=PlugIn_Name,
-            component_constructor=self.create_config_ui,
-            position=10000,
+            component_constructor=self.create_config_ui
         )
 
     def on_tab_select(self, state: dict) -> None:

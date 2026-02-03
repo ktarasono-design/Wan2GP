@@ -1,8 +1,8 @@
 {
-  "name": "Logs Plugin",
+  "name": "Console",
   "author": "FluttyProger",
   "version": "1.0.0",
-  "description": "Logs Plugin",
+  "description": "View Console logs",
   "date": "",
   "wan2gp_version": ""
 }
