@@ -59,7 +59,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
         self.line_tracker = gr.Number(value=0, visible=False)
 
-        def read_new_lines(current_line: int):
+        def read_new_lines(current_line: int, existing_text: str):
             new_line = current_line
             new_lines = []
             import os
@@ -75,19 +75,28 @@ class ConfigTabPlugin(WAN2GPPlugin):
                                 new_line = i + 1
 
             log_text = "\n".join(new_lines) if new_lines else ""
-            return new_line, log_text
+
+            # Append new lines to existing text
+            if existing_text and log_text:
+                combined_text = existing_text + "\n" + log_text
+            elif log_text:
+                combined_text = log_text
+            else:
+                combined_text = existing_text
+
+            return new_line, combined_text
 
         try:
             self.timer = gr.Timer(interval=0.5)
             self.timer.tick(
                 fn=read_new_lines,
-                inputs=[self.line_tracker],
+                inputs=[self.line_tracker, self.log_output],
                 outputs=[self.line_tracker, self.log_output],
             )
         except:
             timer_btn = gr.Button("Refresh Logs", size="sm", visible=True)
             timer_btn.click(
                 fn=read_new_lines,
-                inputs=[self.line_tracker],
+                inputs=[self.line_tracker, self.log_output],
                 outputs=[self.line_tracker, self.log_output],
             )
