@@ -21,6 +21,7 @@ PlugIn_Id ="LogsPlugin"
 class ConfigTabPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
+        self.configure_logging()
 
     def setup_ui(self):
         self.request_global("get_current_model_settings")
