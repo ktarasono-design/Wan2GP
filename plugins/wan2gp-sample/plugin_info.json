@@ -1,8 +1,8 @@
 {
-  "name": "Sample Plugin",
-  "author": "DeepBeepMeep",
+  "name": "Logs Plugin",
+  "author": "FluttyProger",
   "version": "1.0.0",
-  "description": "Sample Source Code to Design Plugins",
+  "description": "Logs Plugin",
   "date": "",
   "wan2gp_version": ""
 }
