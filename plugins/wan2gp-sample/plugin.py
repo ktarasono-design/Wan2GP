@@ -1,8 +1,6 @@
 import logging
 import gradio as gr
 from shared.utils.plugins import WAN2GPPlugin
-from gradio_livelog import LiveLog
-from gradio_livelog.utils import livelog
 import time
 
 PlugIn_Name = "Logs Plugin"
@@ -43,68 +41,53 @@ class ConfigTabPlugin(WAN2GPPlugin):
         gr.Markdown("### Auto-streaming logs from file (sample.log)")
 
         log_file = "/workspace/wan2gp_log.txt"
-        tracker_file = ".line_tracker.txt"
 
         with gr.Column():
-            self.feature_logger = LiveLog(
+            self.log_output = gr.Textbox(
                 label="Process Output",
-                line_numbers=True,
-                height=450,
-                background_color="#000000",
-                display_mode="log",
+                lines=30,
+                max_lines=30,
+                show_copy_button=True,
+                autoscroll=True,
+                interactive=False,
+                value="",
             )
 
             file_info = gr.Markdown(
                 f"**Log file:** `{log_file}` - Auto-refreshing every 0.5s"
             )
 
-        @livelog(
-            log_names=["logging_app"],
-            outputs_for_yield=[self.feature_logger],
-            log_output_index=0,
-            result_output_index=0,
-            use_tracker=False,
-        )
-        def read_new_lines(**kwargs):
-            log_callback = kwargs["log_callback"]
+        self.line_tracker = gr.Number(value=0, visible=False)
+
+        def read_new_lines(current_line: int):
+            new_line = current_line
+            new_lines = []
             import os
 
-            # Read current line from file
-            current_line = 0
-            if os.path.exists(tracker_file):
-                try:
-                    with open(tracker_file, "r") as tf:
-                        current_line = int(tf.read())
-                except:
-                    pass
-
-            # Read new lines from log file
             if os.path.exists(log_file):
                 with open(log_file, "r", encoding="utf-8") as f:
                     lines = f.readlines()
-
                     if current_line < len(lines):
                         for i in range(current_line, len(lines)):
-                            line = lines[i].strip()
+                            line = lines[i].rstrip("\n")
                             if line:
-                                app_logger.info(line)
-                                log_callback(log_content=line)
-                                current_line = i + 1
-                                time.sleep(0.01)
+                                new_lines.append(line)
+                                new_line = i + 1
 
-                        # Save new line position
-                        with open(tracker_file, "w") as tf:
-                            tf.write(str(current_line))
+            log_text = "\n".join(new_lines) if new_lines else ""
+            return new_line, log_text
 
         try:
             self.timer = gr.Timer(interval=0.5)
             self.timer.tick(
                 fn=read_new_lines,
-                outputs=[self.feature_logger],
+                inputs=[self.line_tracker],
+                outputs=[self.line_tracker, self.log_output],
             )
         except:
             timer_btn = gr.Button("Refresh Logs", size="sm", visible=True)
             timer_btn.click(
                 fn=read_new_lines,
-                outputs=[self.feature_logger],
+                inputs=[self.line_tracker],
+                outputs=[self.line_tracker, self.log_output],
             )
