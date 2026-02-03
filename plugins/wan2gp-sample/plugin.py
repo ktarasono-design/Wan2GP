@@ -22,6 +22,14 @@ class ConfigTabPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
 
+    feature_logger = LiveLog(
+        label="Process Output",
+        line_numbers=True,
+        height=450,
+        background_color="#000000",
+        display_mode="full"                            
+    )
+
     def setup_ui(self):
         self.request_global("get_current_model_settings")
         self.request_component("refresh_form_trigger")      
@@ -33,7 +41,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
             tab_id=PlugIn_Id,
             label=PlugIn_Name,
             component_constructor=self.create_config_ui,
-            position=-10000
+            position=10000
         )
 
 
@@ -55,7 +63,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
     @livelog(
         log_names=["logging_app"],
-        outputs_for_yield=[],
+        outputs_for_yield=[feature_logger],
         log_output_index=0,
         # interactive_outputs_indices=[1, 2],
         result_output_index=0,
@@ -161,13 +169,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
         gr.Markdown("### Test all features of the LiveLog component interactively.")
 
         with gr.Column():
-            feature_logger = LiveLog(
-                label="Process Output",
-                line_numbers=True,
-                height=450,
-                background_color="#000000",
-                display_mode="full"                            
-            )
+            feature_logger2 = self.feature_logger
             
 
 
