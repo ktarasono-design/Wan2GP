@@ -153,11 +153,6 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
             return new_line, combined_html
 
-            # Wrap in terminal div
-            combined_html = f'<div class="terminal-output">{existing_content if existing_content else "Waiting for logs..."}</div>'
-
-            return new_line, combined_html
-
         # Auto-refresh every 0.5 seconds using Timer (requires Gradio 4.0+)
         self.timer = gr.Timer(interval=0.5)
         self.timer.tick(
