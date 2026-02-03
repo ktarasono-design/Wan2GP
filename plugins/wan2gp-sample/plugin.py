@@ -38,7 +38,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
         pass
 
     def create_config_ui(self):
-        gr.Markdown("### Auto-streaming logs from file (sample.log)")
+        gr.Markdown("### Auto-streaming logs from file")
 
         log_file = "/workspace/wan2gp_log.txt"
 
@@ -72,7 +72,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
             )
 
             file_info = gr.Markdown(
-                f"**Log file:** `{log_file}` - Auto-refreshing every 0.5s"
+                f"**Log file:** `{log_file}` - Auto-refreshing every 2s"
             )
 
         self.line_tracker = gr.Number(value=0, visible=False)
@@ -154,7 +154,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
             return new_line, combined_html
 
         # Auto-refresh every 0.5 seconds using Timer (requires Gradio 4.0+)
-        self.timer = gr.Timer(1.0)
+        self.timer = gr.Timer(2.0)
         self.timer.tick(
             fn=read_new_lines,
             inputs=[self.line_tracker, self.log_output],
