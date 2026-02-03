@@ -27,7 +27,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
         self.add_tab(
             tab_id=PlugIn_Id,
             label=PlugIn_Name,
-            component_constructor=self.create_config_ui
+            component_constructor=self.create_config_ui,
         )
 
     def on_tab_select(self, state: dict) -> None:
@@ -77,10 +77,21 @@ class ConfigTabPlugin(WAN2GPPlugin):
         self.line_tracker = gr.Number(value=0, visible=False)
         self.tick_counter = gr.Number(value=0, visible=False)
 
+        def escape_html(text):
+            result = (
+                text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+                .replace("'", "&#x27;")
+            )
+            return result
+
         def highlight_log_line(line):
             import re
 
-            highlighted = line
+            escaped_line = escape_html(line)
+            highlighted = escaped_line
 
             # Highlight log levels
             if re.search(r"\b(ERROR|FATAL|CRITICAL)\b", highlighted, re.IGNORECASE):
