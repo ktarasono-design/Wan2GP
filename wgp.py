@@ -1,5 +1,5 @@
 import os, sys
-os.environ["GRADIO_LANG"] = "en"
+os.environ["GRADIO_LANG"] = "ru"
 # # os.environ.pop("TORCH_LOGS", None)  # make sure no env var is suppressing/overriding
 # os.environ["TORCH_LOGS"]= "recompiles"
 import torch._logging as tlog
