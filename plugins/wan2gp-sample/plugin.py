@@ -42,15 +42,33 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
         log_file = "/workspace/wan2gp_log.txt"
 
+        gr.HTML("""
+        <style>
+            .terminal-output {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 13px;
+                padding: 15px;
+                border-radius: 5px;
+                overflow-y: auto;
+                max-height: 500px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            .log-error { color: #f48771; }
+            .log-warn { color: #cca700; }
+            .log-info { color: #4fc1ff; }
+            .log-success { color: #4ec9b0; }
+            .log-debug { color: #808080; }
+            .log-timestamp { color: #6a9955; }
+        </style>
+        """)
+
         with gr.Column():
-            self.log_output = gr.Textbox(
-                label="Process Output",
-                lines=30,
-                max_lines=30,
-                show_copy_button=True,
-                autoscroll=True,
-                interactive=False,
-                value="",
+            self.log_output = gr.HTML(
+                value='<div class="terminal-output">Waiting for logs...</div>',
+                label="Terminal Output",
             )
 
             file_info = gr.Markdown(
@@ -58,8 +76,38 @@ class ConfigTabPlugin(WAN2GPPlugin):
             )
 
         self.line_tracker = gr.Number(value=0, visible=False)
+        self.tick_counter = gr.Number(value=0, visible=False)
 
-        def read_new_lines(current_line: int, existing_text: str):
+        def highlight_log_line(line):
+            import re
+
+            highlighted = line
+
+            # Highlight log levels
+            if re.search(r"\b(ERROR|FATAL|CRITICAL)\b", highlighted, re.IGNORECASE):
+                highlighted = f'<span class="log-error">{highlighted}</span>'
+            elif re.search(r"\b(WARN|WARNING)\b", highlighted, re.IGNORECASE):
+                highlighted = f'<span class="log-warn">{highlighted}</span>'
+            elif re.search(r"\b(INFO|INFORMATION)\b", highlighted, re.IGNORECASE):
+                highlighted = f'<span class="log-info">{highlighted}</span>'
+            elif re.search(r"\b(DEBUG)\b", highlighted, re.IGNORECASE):
+                highlighted = f'<span class="log-debug">{highlighted}</span>'
+            elif re.search(r"\b(SUCCESS|COMPLETED|DONE)\b", highlighted, re.IGNORECASE):
+                highlighted = f'<span class="log-success">{highlighted}</span>'
+
+            # Highlight timestamps
+            timestamp_match = re.search(
+                r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", highlighted
+            )
+            if timestamp_match:
+                timestamp = timestamp_match.group(1)
+                highlighted = highlighted.replace(
+                    timestamp, f'<span class="log-timestamp">{timestamp}</span>'
+                )
+
+            return highlighted
+
+        def read_new_lines(current_line: int, existing_html: str):
             new_line = current_line
             new_lines = []
             import os
@@ -74,29 +122,41 @@ class ConfigTabPlugin(WAN2GPPlugin):
                                 new_lines.append(line)
                                 new_line = i + 1
 
-            log_text = "\n".join(new_lines) if new_lines else ""
+            # Extract existing log content from HTML
+            existing_content = ""
+            if existing_html:
+                import re
 
-            # Append new lines to existing text
-            if existing_text and log_text:
-                combined_text = existing_text + "\n" + log_text
-            elif log_text:
-                combined_text = log_text
-            else:
-                combined_text = existing_text
+                match = re.search(
+                    r'<div class="terminal-output">(.*?)</div>',
+                    existing_html,
+                    re.DOTALL,
+                )
+                if match:
+                    existing_content = match.group(1)
+                elif (
+                    existing_html
+                    != '<div class="terminal-output">Waiting for logs...</div>'
+                ):
+                    existing_content = existing_html
 
-            return new_line, combined_text
+            # Highlight and append new lines
+            for line in new_lines:
+                highlighted = highlight_log_line(line)
+                if existing_content:
+                    existing_content += "\n" + highlighted
+                else:
+                    existing_content = highlighted
 
-        try:
-            self.timer = gr.Timer(interval=0.5)
-            self.timer.tick(
-                fn=read_new_lines,
-                inputs=[self.line_tracker, self.log_output],
-                outputs=[self.line_tracker, self.log_output],
-            )
-        except:
-            timer_btn = gr.Button("Refresh Logs", size="sm", visible=True)
-            timer_btn.click(
-                fn=read_new_lines,
-                inputs=[self.line_tracker, self.log_output],
-                outputs=[self.line_tracker, self.log_output],
-            )
+            # Wrap in terminal div
+            combined_html = f'<div class="terminal-output">{existing_content if existing_content else "Waiting for logs..."}</div>'
+
+            return new_line, combined_html
+
+        # Auto-refresh every 0.5 seconds using Timer (requires Gradio 4.0+)
+        self.timer = gr.Timer(interval=0.5)
+        self.timer.tick(
+            fn=read_new_lines,
+            inputs=[self.line_tracker, self.log_output],
+            outputs=[self.line_tracker, self.log_output],
+        )
