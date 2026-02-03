@@ -22,14 +22,6 @@ class ConfigTabPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
 
-    feature_logger = LiveLog(
-        label="Process Output",
-        line_numbers=True,
-        height=450,
-        background_color="#000000",
-        display_mode="full"                            
-    )
-
     def setup_ui(self):
         self.request_global("get_current_model_settings")
         self.request_component("refresh_form_trigger")      
@@ -58,23 +50,29 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
 
     def on_tab_select(self, state: dict) -> None:
-        self._run_process_logic(True)
+        @livelog(
+            log_names=["logging_app"],
+            outputs_for_yield=[],
+            log_output_index=0,
+            # interactive_outputs_indices=[1, 2],
+            result_output_index=0,
+            use_tracker=True,
+            tracker_mode="manual",
+            tracker_total_arg_name="total_steps",
+            tracker_description="Simulating a process...",
+            tracker_rate_unit="it/s",
+            disable_console_logs="disable_console",
+            tracker_total_steps=100
+        )
+        def run_success_case(disable_console: bool, rate_unit: str, total_steps: int = 100, **kwargs):
+            kwargs["total_steps"] = total_steps
+            kwargs["rate_unit"] = rate_unit
+            kwargs["disable_console"] = disable_console
+            kwargs["log_name"] = "logging_app"
+            self._run_process_logic(run_error_case=False, **kwargs)
+        run_success_case(False, "it/s")
         return
 
-    @livelog(
-        log_names=["logging_app"],
-        outputs_for_yield=[feature_logger],
-        log_output_index=0,
-        # interactive_outputs_indices=[1, 2],
-        result_output_index=0,
-        use_tracker=True,
-        tracker_mode="manual",
-        tracker_total_arg_name="total_steps",
-        tracker_description="Simulating a process...",
-        tracker_rate_unit="it/s",
-        disable_console_logs="disable_console",
-        tracker_total_steps=100
-    )
     def _run_process_logic(run_error_case: bool, **kwargs):
         """
         Simulate a process with multiple steps, logging progress and status updates to the LiveLog component.
@@ -169,8 +167,20 @@ class ConfigTabPlugin(WAN2GPPlugin):
         gr.Markdown("### Test all features of the LiveLog component interactively.")
 
         with gr.Column():
-            feature_logger2 = self.feature_logger
-            
+            self.feature_logger = LiveLog(
+                label="Process Output",
+                line_numbers=True,
+                height=450,
+                background_color="#000000",
+                display_mode="log"                            
+            )
+            # start_btn = gr.Button("Run Success Case", variant="primary")
+        
+        # start_btn.click(
+        #     fn=run_success_case,
+        #     inputs=[False, "it/s"],
+        #     outputs=[self.feature_logger, start_btn]
+        # )
 
 
    
