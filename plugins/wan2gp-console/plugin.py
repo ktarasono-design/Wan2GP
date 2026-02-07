@@ -42,6 +42,42 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
         log_file = "/app/Wan2GP/wan2gp_log.txt"
 
+        # Add custom styles for the terminal
+        gr.HTML("""
+        <style>
+            /* Terminal styling for the textarea */
+            .console-textarea textarea,
+            .console-textarea .scroll-hide,
+            .console-textarea input {
+                background-color: #1e1e1e !important;
+                color: #d4d4d4 !important;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+                font-size: 13px !important;
+                line-height: 1.4 !important;
+                padding: 15px !important;
+                border-radius: 5px !important;
+                border: 1px solid #333 !important;
+            }
+            .console-textarea textarea::selection {
+                background-color: #264f78;
+            }
+            /* Scrollbar styling */
+            .console-textarea textarea::-webkit-scrollbar {
+                width: 10px;
+            }
+            .console-textarea textarea::-webkit-scrollbar-track {
+                background: #1e1e1e;
+            }
+            .console-textarea textarea::-webkit-scrollbar-thumb {
+                background: #424242;
+                border-radius: 5px;
+            }
+            .console-textarea textarea::-webkit-scrollbar-thumb:hover {
+                background: #4f4f4f;
+            }
+        </style>
+        """)
+        
         with gr.Column():
             # TextArea for logs - no flicker, native scroll
             self.log_output = gr.TextArea(
@@ -51,6 +87,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 max_lines=25,
                 interactive=False,
                 autoscroll=True,
+                elem_classes=["console-textarea"],
             )
             
             file_info = gr.Markdown(
@@ -95,18 +132,18 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 if not line:
                     continue
                     
-                # Simple visual markers for log levels
+                # Visual markers for log levels using unicode symbols
                 upper_line = line.upper()
                 if any(x in upper_line for x in ["ERROR", "FATAL", "CRITICAL"]):
-                    line = "[ERR] " + line
+                    line = "● ERR │ " + line
                 elif any(x in upper_line for x in ["WARN"]):
-                    line = "[WRN] " + line
+                    line = "● WRN │ " + line
                 elif any(x in upper_line for x in ["INFO"]):
-                    line = "[INF] " + line
+                    line = "● INF │ " + line
                 elif any(x in upper_line for x in ["DEBUG"]):
-                    line = "[DBG] " + line
+                    line = "● DBG │ " + line
                 elif any(x in upper_line for x in ["SUCCESS", "COMPLETED", "DONE"]):
-                    line = "[OK]  " + line
+                    line = "● OK  │ " + line
                     
                 output_lines.append(line)
             
