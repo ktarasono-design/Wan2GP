@@ -42,8 +42,23 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
         log_file = "/workspace/wan2gp_log.txt"
 
+        # Hidden textarea for data transfer (rendered but hidden via CSS)
+        self.new_lines_json = gr.TextArea(
+            value='{"id": 0, "lines": []}',
+            label="",
+            elem_id="console-data",
+            interactive=False,
+            lines=1,
+        )
+
         gr.HTML("""
         <style>
+            #console-data {
+                display: none !important;
+            }
+            #console-data-label {
+                display: none !important;
+            }
             .terminal-container {
                 background-color: #1e1e1e;
                 color: #d4d4d4;
@@ -73,6 +88,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
         <script>
             (function() {
                 let lastProcessedId = 0;
+                let checkCount = 0;
                 
                 function escapeHtml(text) {
                     return text
@@ -110,12 +126,18 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 }
                 
                 function processNewLines() {
-                    const jsonInput = document.getElementById('console-data');
-                    if (!jsonInput) return;
+                    const dataEl = document.getElementById('console-data');
+                    if (!dataEl) {
+                        console.log('Console: data element not found, check #' + checkCount++);
+                        return;
+                    }
                     
-                    // Get text content, skip if it's a queue status message
-                    const jsonText = jsonInput.value || jsonInput.textContent || jsonInput.innerText || '';
-                    if (!jsonText || jsonText.startsWith('queue:') || jsonText.startsWith('progress:')) return;
+                    // Get the textarea value or text content
+                    const jsonText = dataEl.value || dataEl.textContent || '';
+                    if (!jsonText || jsonText.length < 10) return;
+                    
+                    // Skip if it contains queue/progress messages
+                    if (jsonText.includes('queue:') || jsonText.includes('progress:')) return;
                     
                     try {
                         const data = JSON.parse(jsonText);
@@ -147,33 +169,20 @@ class ConfigTabPlugin(WAN2GPPlugin):
                             terminal.scrollTop = terminal.scrollHeight;
                         }
                     } catch (e) {
-                        // Silently ignore parse errors from queue status messages
+                        // Ignore parse errors
                     }
                 }
                 
-                // Check for new lines every 500ms
+                // Check immediately and then every 500ms
+                setTimeout(processNewLines, 1000);
                 setInterval(processNewLines, 500);
-                
-                // Also scroll to bottom on load
-                setTimeout(function() {
-                    const terminal = document.getElementById('console-terminal');
-                    if (terminal) terminal.scrollTop = terminal.scrollHeight;
-                }, 500);
             })();
         </script>
         """)
 
-        with gr.Column():
-            # Hidden Text component to pass new lines to JavaScript as JSON string
-            self.new_lines_json = gr.Text(
-                value='{"id": 0, "lines": []}',
-                visible=False,
-                elem_id="console-data"
-            )
-
-            file_info = gr.Markdown(
-                f"**Log file:** `{log_file}` - Auto-refreshing every 2s"
-            )
+        file_info = gr.Markdown(
+            f"**Log file:** `{log_file}` - Auto-refreshing every 2s"
+        )
 
         self.line_tracker = gr.Number(value=0, visible=False)
 
