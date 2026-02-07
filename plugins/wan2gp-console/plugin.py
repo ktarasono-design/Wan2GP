@@ -110,11 +110,12 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 }
                 
                 function processNewLines() {
-                    const jsonInput = document.querySelector('[data-testid="json-console-new-lines"]');
+                    const jsonInput = document.getElementById('console-data');
                     if (!jsonInput) return;
                     
-                    const jsonText = jsonInput.textContent || jsonInput.innerText;
-                    if (!jsonText || jsonText === "null" || jsonText === "[]") return;
+                    // Get text content, skip if it's a queue status message
+                    const jsonText = jsonInput.value || jsonInput.textContent || jsonInput.innerText || '';
+                    if (!jsonText || jsonText.startsWith('queue:') || jsonText.startsWith('progress:')) return;
                     
                     try {
                         const data = JSON.parse(jsonText);
@@ -146,7 +147,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
                             terminal.scrollTop = terminal.scrollHeight;
                         }
                     } catch (e) {
-                        console.error('Console parse error:', e);
+                        // Silently ignore parse errors from queue status messages
                     }
                 }
                 
@@ -163,11 +164,11 @@ class ConfigTabPlugin(WAN2GPPlugin):
         """)
 
         with gr.Column():
-            # Hidden JSON component to pass new lines to JavaScript
-            self.new_lines_json = gr.JSON(
-                value={"id": 0, "lines": []},
+            # Hidden Text component to pass new lines to JavaScript as JSON string
+            self.new_lines_json = gr.Text(
+                value='{"id": 0, "lines": []}',
                 visible=False,
-                elem_id="console-new-lines"
+                elem_id="console-data"
             )
 
             file_info = gr.Markdown(
@@ -191,9 +192,9 @@ class ConfigTabPlugin(WAN2GPPlugin):
                                 new_lines.append(line)
                                 new_line = i + 1
 
-            # Return update ID and new lines
+            # Return update ID and new lines as JSON string
             update_id = int(time.time() * 1000) if new_lines else current_line
-            return new_line, {"id": update_id, "lines": new_lines}
+            return new_line, json.dumps({"id": update_id, "lines": new_lines})
 
         # Auto-refresh every 2 seconds using Timer
         self.timer = gr.Timer(2.0)
