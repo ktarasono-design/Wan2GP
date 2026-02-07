@@ -40,26 +40,15 @@ class ConfigTabPlugin(WAN2GPPlugin):
     def create_config_ui(self):
         gr.Markdown("### Auto-streaming logs from file")
 
-        log_file = "/workspace/wan2gp_log.txt"
+        log_file = "/app/Wan2GP/wan2gp_log.txt"
 
-        # Hidden textarea for data transfer (rendered but hidden via CSS)
-        self.new_lines_json = gr.TextArea(
-            value='{"id": 0, "lines": []}',
-            label="",
-            elem_id="console-data",
-            interactive=False,
-            lines=1,
-        )
+        # Store for new lines data - used by JavaScript
+        self.line_tracker = gr.State(value=0)
+        self.log_buffer = gr.State(value=[])
 
-        gr.HTML("""
+        gr.HTML(f"""
         <style>
-            #console-data {
-                display: none !important;
-            }
-            #console-data-label {
-                display: none !important;
-            }
-            .terminal-container {
+            .terminal-container {{
                 background-color: #1e1e1e;
                 color: #d4d4d4;
                 font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -71,144 +60,109 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 scroll-behavior: smooth;
-            }
-            .log-line {
+            }}
+            .log-line {{
                 display: block;
                 margin: 2px 0;
                 line-height: 1.4;
-            }
-            .log-error { color: #f48771; }
-            .log-warn { color: #cca700; }
-            .log-info { color: #4fc1ff; }
-            .log-success { color: #4ec9b0; }
-            .log-debug { color: #808080; }
-            .log-timestamp { color: #6a9955; }
+            }}
+            .log-error {{ color: #f48771; }}
+            .log-warn {{ color: #cca700; }}
+            .log-info {{ color: #4fc1ff; }}
+            .log-success {{ color: #4ec9b0; }}
+            .log-debug {{ color: #808080; }}
+            .log-timestamp {{ color: #6a9955; }}
         </style>
         <div id="console-terminal" class="terminal-container">Waiting for logs...</div>
         <script>
-            (function() {
-                let lastProcessedId = 0;
-                let checkCount = 0;
+            (function() {{
+                let lastLineCount = 0;
+                const logFile = "{log_file}";
                 
-                function escapeHtml(text) {
+                function escapeHtml(text) {{
                     return text
                         .replace(/&/g, "&amp;")
                         .replace(/</g, "&lt;")
                         .replace(/>/g, "&gt;")
                         .replace(/"/g, "&quot;")
                         .replace(/'/g, "&#x27;");
-                }
+                }}
                 
-                function highlightLogLine(line) {
+                function highlightLogLine(line) {{
                     let highlighted = escapeHtml(line);
                     
-                    if (/\\b(ERROR|FATAL|CRITICAL)\\b/i.test(highlighted)) {
+                    if (/\\b(ERROR|FATAL|CRITICAL)\\b/i.test(highlighted)) {{
                         highlighted = '<span class="log-error">' + highlighted + '</span>';
-                    } else if (/\\b(WARN|WARNING)\\b/i.test(highlighted)) {
+                    }} else if (/\\b(WARN|WARNING)\\b/i.test(highlighted)) {{
                         highlighted = '<span class="log-warn">' + highlighted + '</span>';
-                    } else if (/\\b(INFO|INFORMATION)\\b/i.test(highlighted)) {
+                    }} else if (/\\b(INFO|INFORMATION)\\b/i.test(highlighted)) {{
                         highlighted = '<span class="log-info">' + highlighted + '</span>';
-                    } else if (/\\b(DEBUG)\\b/i.test(highlighted)) {
+                    }} else if (/\\b(DEBUG)\\b/i.test(highlighted)) {{
                         highlighted = '<span class="log-debug">' + highlighted + '</span>';
-                    } else if (/\\b(SUCCESS|COMPLETED|DONE)\\b/i.test(highlighted)) {
+                    }} else if (/\\b(SUCCESS|COMPLETED|DONE)\\b/i.test(highlighted)) {{
                         highlighted = '<span class="log-success">' + highlighted + '</span>';
-                    }
+                    }}
                     
-                    const timestampMatch = highlighted.match(/(\\d{4}-\\d{2}-\\d{2}[\\sT]\\d{2}:\\d{2}:\\d{2})/);
-                    if (timestampMatch) {
+                    const timestampMatch = highlighted.match(/(\\d{{4}}-\\d{{2}}-\\d{{2}}[\\sT]\\d{{2}}:\\d{{2}}:\\d{{2}})/);
+                    if (timestampMatch) {{
                         highlighted = highlighted.replace(
                             timestampMatch[1],
                             '<span class="log-timestamp">' + timestampMatch[1] + '</span>'
                         );
-                    }
+                    }}
                     
                     return highlighted;
-                }
+                }}
                 
-                function processNewLines() {
-                    const dataEl = document.getElementById('console-data');
-                    if (!dataEl) {
-                        console.log('Console: data element not found, check #' + checkCount++);
-                        return;
-                    }
-                    
-                    // Get the textarea value or text content
-                    const jsonText = dataEl.value || dataEl.textContent || '';
-                    if (!jsonText || jsonText.length < 10) return;
-                    
-                    // Skip if it contains queue/progress messages
-                    if (jsonText.includes('queue:') || jsonText.includes('progress:')) return;
-                    
-                    try {
-                        const data = JSON.parse(jsonText);
-                        if (!data || !data.lines || data.id <= lastProcessedId) return;
+                async function fetchLogs() {{
+                    try {{
+                        const response = await fetch('/file=' + logFile);
+                        if (!response.ok) return;
                         
-                        lastProcessedId = data.id;
+                        const text = await response.text();
+                        const lines = text.split('\\n').filter(line => line.trim());
+                        
+                        if (lines.length === 0 || lines.length <= lastLineCount) return;
+                        
                         const terminal = document.getElementById('console-terminal');
                         if (!terminal) return;
                         
-                        if (terminal.textContent === 'Waiting for logs...') {
+                        if (terminal.textContent === 'Waiting for logs...') {{
                             terminal.innerHTML = '';
-                        }
+                        }}
                         
                         const wasNearBottom = terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight < 50;
                         
-                        data.lines.forEach(function(line) {
+                        for (let i = lastLineCount; i < lines.length; i++) {{
                             const div = document.createElement('div');
                             div.className = 'log-line';
-                            div.innerHTML = highlightLogLine(line);
+                            div.innerHTML = highlightLogLine(lines[i]);
                             terminal.appendChild(div);
-                        });
+                        }}
+                        
+                        lastLineCount = lines.length;
                         
                         // Keep only last 500 lines to prevent memory issues
-                        while (terminal.children.length > 500) {
+                        while (terminal.children.length > 500) {{
                             terminal.removeChild(terminal.firstChild);
-                        }
+                            lastLineCount--;
+                        }}
                         
-                        if (wasNearBottom) {
+                        if (wasNearBottom) {{
                             terminal.scrollTop = terminal.scrollHeight;
-                        }
-                    } catch (e) {
-                        // Ignore parse errors
-                    }
-                }
+                        }}
+                    }} catch (e) {{
+                        // Silently fail - file might not exist yet
+                    }}
+                }}
                 
-                // Check immediately and then every 500ms
-                setTimeout(processNewLines, 1000);
-                setInterval(processNewLines, 500);
-            })();
+                // Fetch immediately and then every 2 seconds
+                setTimeout(fetchLogs, 500);
+                setInterval(fetchLogs, 2000);
+            }})();
         </script>
         """)
 
         file_info = gr.Markdown(
             f"**Log file:** `{log_file}` - Auto-refreshing every 2s"
-        )
-
-        self.line_tracker = gr.Number(value=0, visible=False)
-
-        def read_new_lines(current_line: int):
-            new_line = current_line
-            new_lines = []
-            import os
-
-            if os.path.exists(log_file):
-                with open(log_file, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    if current_line < len(lines):
-                        for i in range(current_line, len(lines)):
-                            line = lines[i].rstrip("\n")
-                            if line:
-                                new_lines.append(line)
-                                new_line = i + 1
-
-            # Return update ID and new lines as JSON string
-            update_id = int(time.time() * 1000) if new_lines else current_line
-            return new_line, json.dumps({"id": update_id, "lines": new_lines})
-
-        # Auto-refresh every 2 seconds using Timer
-        self.timer = gr.Timer(2.0)
-        self.timer.tick(
-            fn=read_new_lines,
-            inputs=[self.line_tracker],
-            outputs=[self.line_tracker, self.new_lines_json],
         )
