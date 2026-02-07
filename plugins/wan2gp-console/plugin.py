@@ -2,6 +2,7 @@ import logging
 import gradio as gr
 from shared.utils.plugins import WAN2GPPlugin
 import time
+import json
 
 PlugIn_Name = "Console"
 PlugIn_Id = "LogsPlugin"
@@ -43,7 +44,7 @@ class ConfigTabPlugin(WAN2GPPlugin):
 
         gr.HTML("""
         <style>
-            .terminal-output {
+            .terminal-container {
                 background-color: #1e1e1e;
                 color: #d4d4d4;
                 font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -54,6 +55,12 @@ class ConfigTabPlugin(WAN2GPPlugin):
                 max-height: 500px;
                 white-space: pre-wrap;
                 word-wrap: break-word;
+                scroll-behavior: smooth;
+            }
+            .log-line {
+                display: block;
+                margin: 2px 0;
+                line-height: 1.4;
             }
             .log-error { color: #f48771; }
             .log-warn { color: #cca700; }
@@ -62,12 +69,105 @@ class ConfigTabPlugin(WAN2GPPlugin):
             .log-debug { color: #808080; }
             .log-timestamp { color: #6a9955; }
         </style>
+        <div id="console-terminal" class="terminal-container">Waiting for logs...</div>
+        <script>
+            (function() {
+                let lastProcessedId = 0;
+                
+                function escapeHtml(text) {
+                    return text
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#x27;");
+                }
+                
+                function highlightLogLine(line) {
+                    let highlighted = escapeHtml(line);
+                    
+                    if (/\\b(ERROR|FATAL|CRITICAL)\\b/i.test(highlighted)) {
+                        highlighted = '<span class="log-error">' + highlighted + '</span>';
+                    } else if (/\\b(WARN|WARNING)\\b/i.test(highlighted)) {
+                        highlighted = '<span class="log-warn">' + highlighted + '</span>';
+                    } else if (/\\b(INFO|INFORMATION)\\b/i.test(highlighted)) {
+                        highlighted = '<span class="log-info">' + highlighted + '</span>';
+                    } else if (/\\b(DEBUG)\\b/i.test(highlighted)) {
+                        highlighted = '<span class="log-debug">' + highlighted + '</span>';
+                    } else if (/\\b(SUCCESS|COMPLETED|DONE)\\b/i.test(highlighted)) {
+                        highlighted = '<span class="log-success">' + highlighted + '</span>';
+                    }
+                    
+                    const timestampMatch = highlighted.match(/(\\d{4}-\\d{2}-\\d{2}[\\sT]\\d{2}:\\d{2}:\\d{2})/);
+                    if (timestampMatch) {
+                        highlighted = highlighted.replace(
+                            timestampMatch[1],
+                            '<span class="log-timestamp">' + timestampMatch[1] + '</span>'
+                        );
+                    }
+                    
+                    return highlighted;
+                }
+                
+                function processNewLines() {
+                    const jsonInput = document.querySelector('[data-testid="json-console-new-lines"]');
+                    if (!jsonInput) return;
+                    
+                    const jsonText = jsonInput.textContent || jsonInput.innerText;
+                    if (!jsonText || jsonText === "null" || jsonText === "[]") return;
+                    
+                    try {
+                        const data = JSON.parse(jsonText);
+                        if (!data || !data.lines || data.id <= lastProcessedId) return;
+                        
+                        lastProcessedId = data.id;
+                        const terminal = document.getElementById('console-terminal');
+                        if (!terminal) return;
+                        
+                        if (terminal.textContent === 'Waiting for logs...') {
+                            terminal.innerHTML = '';
+                        }
+                        
+                        const wasNearBottom = terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight < 50;
+                        
+                        data.lines.forEach(function(line) {
+                            const div = document.createElement('div');
+                            div.className = 'log-line';
+                            div.innerHTML = highlightLogLine(line);
+                            terminal.appendChild(div);
+                        });
+                        
+                        // Keep only last 500 lines to prevent memory issues
+                        while (terminal.children.length > 500) {
+                            terminal.removeChild(terminal.firstChild);
+                        }
+                        
+                        if (wasNearBottom) {
+                            terminal.scrollTop = terminal.scrollHeight;
+                        }
+                    } catch (e) {
+                        console.error('Console parse error:', e);
+                    }
+                }
+                
+                // Check for new lines every 500ms
+                setInterval(processNewLines, 500);
+                
+                // Also scroll to bottom on load
+                setTimeout(function() {
+                    const terminal = document.getElementById('console-terminal');
+                    if (terminal) terminal.scrollTop = terminal.scrollHeight;
+                }, 500);
+            })();
+        </script>
         """)
 
         with gr.Column():
-            self.log_output = gr.HTML(
-                value='<div class="terminal-output">Waiting for logs...</div>',
-                label="Terminal Output",
+            # Hidden JSON component to pass new lines to JavaScript
+            self.new_lines_json = gr.JSON(
+                value={"id": 0, "lines": []},
+                visible=False,
+                elem_id="console-new-lines"
             )
 
             file_info = gr.Markdown(
@@ -75,49 +175,8 @@ class ConfigTabPlugin(WAN2GPPlugin):
             )
 
         self.line_tracker = gr.Number(value=0, visible=False)
-        self.tick_counter = gr.Number(value=0, visible=False)
 
-        def escape_html(text):
-            result = (
-                text.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace('"', "&quot;")
-                .replace("'", "&#x27;")
-            )
-            return result
-
-        def highlight_log_line(line):
-            import re
-
-            escaped_line = escape_html(line)
-            highlighted = escaped_line
-
-            # Highlight log levels
-            if re.search(r"\b(ERROR|FATAL|CRITICAL)\b", highlighted, re.IGNORECASE):
-                highlighted = f'<span class="log-error">{highlighted}</span>'
-            elif re.search(r"\b(WARN|WARNING)\b", highlighted, re.IGNORECASE):
-                highlighted = f'<span class="log-warn">{highlighted}</span>'
-            elif re.search(r"\b(INFO|INFORMATION)\b", highlighted, re.IGNORECASE):
-                highlighted = f'<span class="log-info">{highlighted}</span>'
-            elif re.search(r"\b(DEBUG)\b", highlighted, re.IGNORECASE):
-                highlighted = f'<span class="log-debug">{highlighted}</span>'
-            elif re.search(r"\b(SUCCESS|COMPLETED|DONE)\b", highlighted, re.IGNORECASE):
-                highlighted = f'<span class="log-success">{highlighted}</span>'
-
-            # Highlight timestamps
-            timestamp_match = re.search(
-                r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", highlighted
-            )
-            if timestamp_match:
-                timestamp = timestamp_match.group(1)
-                highlighted = highlighted.replace(
-                    timestamp, f'<span class="log-timestamp">{timestamp}</span>'
-                )
-
-            return highlighted
-
-        def read_new_lines(current_line: int, existing_html: str):
+        def read_new_lines(current_line: int):
             new_line = current_line
             new_lines = []
             import os
@@ -132,41 +191,14 @@ class ConfigTabPlugin(WAN2GPPlugin):
                                 new_lines.append(line)
                                 new_line = i + 1
 
-            # Extract existing log content from HTML
-            existing_content = ""
-            if existing_html:
-                import re
+            # Return update ID and new lines
+            update_id = int(time.time() * 1000) if new_lines else current_line
+            return new_line, {"id": update_id, "lines": new_lines}
 
-                match = re.search(
-                    r'<div class="terminal-output">(.*?)</div>',
-                    existing_html,
-                    re.DOTALL,
-                )
-                if match:
-                    existing_content = match.group(1)
-                elif (
-                    existing_html
-                    != '<div class="terminal-output">Waiting for logs...</div>'
-                ):
-                    existing_content = existing_html
-
-            # Highlight and append new lines
-            for line in new_lines:
-                highlighted = highlight_log_line(line)
-                if existing_content:
-                    existing_content += "\n" + highlighted
-                else:
-                    existing_content = highlighted
-
-            # Wrap in terminal div
-            combined_html = f'<div class="terminal-output">{existing_content if existing_content else "Waiting for logs..."}</div>'
-
-            return new_line, combined_html
-
-        # Auto-refresh every 0.5 seconds using Timer (requires Gradio 4.0+)
+        # Auto-refresh every 2 seconds using Timer
         self.timer = gr.Timer(2.0)
         self.timer.tick(
             fn=read_new_lines,
-            inputs=[self.line_tracker, self.log_output],
-            outputs=[self.line_tracker, self.log_output],
+            inputs=[self.line_tracker],
+            outputs=[self.line_tracker, self.new_lines_json],
         )
